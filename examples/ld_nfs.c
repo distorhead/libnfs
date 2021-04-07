@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <asm/fcntl.h>
+#include <dirent.h>
 
 #include <nfsc/libnfs.h>
 
@@ -33,7 +34,7 @@
 
 #define NFS_MAX_FD  255
 
-static int debug = 0;
+static int debug = 100;
 static int nfsuid = -1;
 static int nfsgid = -1;
 
@@ -43,11 +44,9 @@ static int nfsgid = -1;
 
 #define LD_NFS_DPRINTF(level, fmt, args...) \
 	do { \
-		if ((debug) >= level) { \
-			fprintf(stderr,"ld_nfs: "); \
-			fprintf(stderr, (fmt), ##args); \
-			fprintf(stderr,"\n"); \
-		} \
+		fprintf(stderr,"ld_nfs: "); \
+		fprintf(stderr, (fmt), ##args); \
+		fprintf(stderr,"\n"); \
 	} while (0);
 
 struct nfs_fd_list {
@@ -361,7 +360,7 @@ int __xstat(int ver, const char *path, struct stat *buf)
 		int fd, ret;
 
 		LD_NFS_DPRINTF(9, "__xstat(%s)", new_path);
-		fd = open(new_path, 0, 0);
+		fd = open(path, 0, 0);
 		if (fd == -1) {
 			return fd;
 		}
@@ -389,7 +388,7 @@ int __xstat64(int ver, const char *path, struct stat64 *buf)
 		int fd, ret;
 
 		LD_NFS_DPRINTF(9, "__xstat64(%s)", new_path);
-		fd = open(new_path, 0, 0);
+		fd = open(path, 0, 0);
 		if (fd == -1) {
 			return fd;
 		}
@@ -417,7 +416,7 @@ int __lxstat(int ver, const char *path, struct stat *buf)
 		int fd, ret;
 
 		LD_NFS_DPRINTF(9, "__lxstat(%s)", new_path);
-		fd = open(new_path, 0, 0);
+		fd = open(path, 0, 0);
 		if (fd == -1) {
 			return fd;
 		}
@@ -445,7 +444,7 @@ int __lxstat64(int ver, const char *path, struct stat64 *buf)
 		int fd, ret;
 
 		LD_NFS_DPRINTF(9, "__lxstat64(%s)", new_path);
-		fd = open(new_path, 0, 0);
+		fd = open(path, 0, 0);
 		if (fd == -1) {
 			return fd;
 		}
@@ -601,7 +600,7 @@ int truncate(const char *path, off_t len)
 		int fd, ret;
 
 		LD_NFS_DPRINTF(9, "truncate(%s, %d)", new_path, (int)len);
-		fd = open(new_path, 0, 0);
+		fd = open(path, 0, 0);
 		if (fd == -1) {
 			return fd;
 		}
@@ -649,7 +648,7 @@ int chmod(const char *path, mode_t mode)
 		int fd, ret;
 
 		LD_NFS_DPRINTF(9, "chmod(%s, %o)", new_path, (int)mode);
-		fd = open(new_path, 0, 0);
+		fd = open(path, 0, 0);
 		if (fd == -1) {
 			return fd;
 		}
@@ -709,7 +708,7 @@ int chown(const char *path, __uid_t uid, __gid_t gid)
 		int fd, ret;
 
 		LD_NFS_DPRINTF(9, "chown(%s, %o, %o)", new_path, (int)uid, (int)gid);
-		fd = open(new_path, 0, 0);
+		fd = open(path, 0, 0);
 		if (fd == -1) {
 			return fd;
 		}
@@ -732,6 +731,15 @@ int fchownat(int fd, const char *path, uid_t uid, gid_t gid, int flags)
 	}
 
 	return real_fchownat(fd, path, uid, gid, flags);
+}
+
+// int (*real_readdir)(int fd, const char *path, __uid_t uid, __gid_t gid, int flags);
+// int (*real_readdir)(unsigned int fd, struct old_linux_dirent *dirp, unsigned int count);
+struct dirent *(*real_readdir)(DIR *dirp);
+struct dirent *readdir(DIR *dirp)
+{
+	printf("[DEBUG ld_nfs.so] readdir\n");
+	return real_readdir(dirp);
 }
 
 static void __attribute__((constructor)) _init(void)
@@ -890,6 +898,12 @@ static void __attribute__((constructor)) _init(void)
 	real_fchownat = dlsym(RTLD_NEXT, "fchownat");
 	if (real_fchownat == NULL) {
 		LD_NFS_DPRINTF(0, "Failed to dlsym(fchownat)");
+		exit(10);
+	}
+
+	real_readdir = dlsym(RTLD_NEXT, "readdir");
+	if (real_readdir == NULL) {
+		LD_NFS_DPRINTF(0, "Failed to dlsym(readdir)");
 		exit(10);
 	}
 }
