@@ -32,7 +32,7 @@
 #include <sys/syscall.h>
 #include <dlfcn.h>
 
-#define NFS_MAX_FD  255
+#define NFS_MAX_FD 255
 
 static int debug = 100;
 static int nfsuid = -1;
@@ -43,21 +43,23 @@ static int nfsgid = -1;
 #endif
 
 #define LD_NFS_DPRINTF(level, fmt, args...) \
-	do { \
-		fprintf(stderr,"ld_nfs: "); \
-		fprintf(stderr, (fmt), ##args); \
-		fprintf(stderr,"\n"); \
+	do                                      \
+	{                                       \
+		fprintf(stderr, "ld_nfs: ");        \
+		fprintf(stderr, (fmt), ##args);     \
+		fprintf(stderr, "\n");              \
 	} while (0);
 
-struct nfs_fd_list {
-       int is_nfs;
-       struct nfs_context *nfs;
-       struct nfsfh *fh;
+struct nfs_fd_list
+{
+	int is_nfs;
+	struct nfs_context *nfs;
+	struct nfsfh *fh;
 
-       /* so we can reopen and emulate dup2() */
-       const char *path;
-       int flags;
-       mode_t mode;
+	/* so we can reopen and emulate dup2() */
+	const char *path;
+	int flags;
+	mode_t mode;
 };
 
 static struct nfs_fd_list nfs_fd_list[NFS_MAX_FD];
@@ -67,8 +69,9 @@ int (*real_open)(__const char *path, int flags, mode_t mode);
 int open(const char *path, int flags, mode_t mode)
 {
 	printf("[DEBUG ld_nfs.so] open %s\n", path);
-	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
-		const char * addr_path_prefix = "nfs://172.17.0.3";
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6)))
+	{
+		const char *addr_path_prefix = "nfs://172.17.0.3";
 		char new_path[strlen(addr_path_prefix) + strlen(path) + 1];
 		sprintf(new_path, "%s%s", addr_path_prefix, path);
 		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
@@ -80,7 +83,8 @@ int open(const char *path, int flags, mode_t mode)
 
 		LD_NFS_DPRINTF(9, "open(%s, %x, %o)", new_path, flags, mode);
 		nfs = nfs_init_context();
-		if (nfs == NULL) {
+		if (nfs == NULL)
+		{
 			LD_NFS_DPRINTF(1, "Failed to create context");
 			errno = ENOMEM;
 			return -1;
@@ -92,36 +96,46 @@ int open(const char *path, int flags, mode_t mode)
 			nfs_set_gid(nfs, nfsgid);
 
 		url = nfs_parse_url_full(nfs, new_path);
-		if (url == NULL) {
+		if (url == NULL)
+		{
 			LD_NFS_DPRINTF(1, "Failed to parse URL: %s\n",
-				nfs_get_error(nfs));
+						   nfs_get_error(nfs));
 			nfs_destroy_context(nfs);
 			errno = EINVAL;
 			return -1;
 		}
 
-		if (nfs_mount(nfs, url->server, url->path) != 0) {
+		if (nfs_mount(nfs, url->server, url->path) != 0)
+		{
 			LD_NFS_DPRINTF(1, "Failed to mount nfs share : %s\n",
-			       nfs_get_error(nfs));
+						   nfs_get_error(nfs));
 			nfs_destroy_url(url);
 			nfs_destroy_context(nfs);
 			errno = EINVAL;
 			return -1;
 		}
 
-		if (flags & O_CREAT) {
-			if ((ret = nfs_creat(nfs, url->file, mode, &fh)) != 0) {
+		if (flags & O_CREAT)
+		{
+			if ((ret = nfs_creat(nfs, url->file, mode, &fh)) != 0)
+			{
 				LD_NFS_DPRINTF(1, "Failed to creat nfs file : "
-					"%s\n", nfs_get_error(nfs));
+								  "%s\n",
+							   nfs_get_error(nfs));
 				nfs_destroy_url(url);
 				nfs_destroy_context(nfs);
 				errno = -ret;
 				return -1;
 			}
-		} else {
-			if ((ret = nfs_open(nfs, url->file, flags, &fh)) != 0) {
+		}
+		else
+		{
+			printf("-- before nfs_open %s\n", path);
+			if ((ret = nfs_open(nfs, url->file, flags, &fh)) != 0)
+			{
 				LD_NFS_DPRINTF(1, "Failed to open nfs file : "
-					"%s\n", nfs_get_error(nfs));
+								  "%s\n",
+							   nfs_get_error(nfs));
 				nfs_destroy_url(url);
 				nfs_destroy_context(nfs);
 				errno = -ret;
@@ -130,20 +144,23 @@ int open(const char *path, int flags, mode_t mode)
 		}
 
 		fd = nfs_get_fd(nfs);
-		if (fd >= NFS_MAX_FD) {
+		if (fd >= NFS_MAX_FD)
+		{
 			LD_NFS_DPRINTF(1, "Too many files open");
 			nfs_destroy_url(url);
 			nfs_destroy_context(nfs);
 			errno = ENFILE;
 			return -1;
-		}		
+		}
 
-		nfs_fd_list[fd].is_nfs     = 1;
-		nfs_fd_list[fd].nfs        = nfs;
-		nfs_fd_list[fd].fh         = fh;
-		nfs_fd_list[fd].path       = strdup(new_path);
-		nfs_fd_list[fd].flags      = flags;
-		nfs_fd_list[fd].mode       = mode;
+		nfs_fd_list[fd].is_nfs = 1;
+		nfs_fd_list[fd].nfs = nfs;
+		nfs_fd_list[fd].fh = fh;
+		nfs_fd_list[fd].path = strdup(new_path);
+		nfs_fd_list[fd].flags = flags;
+		nfs_fd_list[fd].mode = mode;
+
+		printf("OPENED %d -> is_nfs = %d\n", fd, nfs_fd_list[fd].is_nfs);
 
 		nfs_destroy_url(url);
 
@@ -163,7 +180,8 @@ int (*real_close)(int fd);
 
 int close(int fd)
 {
-	if (nfs_fd_list[fd].is_nfs == 1) {
+	if (nfs_fd_list[fd].is_nfs == 1)
+	{
 		int i;
 
 		LD_NFS_DPRINTF(9, "close(%d)", fd);
@@ -182,19 +200,21 @@ int close(int fd)
 		return 0;
 	}
 
-        return real_close(fd);
+	return real_close(fd);
 }
 
 ssize_t (*real_read)(int fd, void *buf, size_t count);
 
 ssize_t read(int fd, void *buf, size_t count)
 {
-	if (nfs_fd_list[fd].is_nfs == 1) {
+	if (nfs_fd_list[fd].is_nfs == 1)
+	{
 		int ret;
 
 		LD_NFS_DPRINTF(9, "read(fd:%d count:%d)", fd, (int)count);
 		if ((ret = nfs_read(nfs_fd_list[fd].nfs, nfs_fd_list[fd].fh,
-				count, buf)) < 0) {
+							count, buf)) < 0)
+		{
 			errno = -ret;
 			return -1;
 		}
@@ -203,15 +223,18 @@ ssize_t read(int fd, void *buf, size_t count)
 	return real_read(fd, buf, count);
 }
 
-ssize_t (*real_pread)(int fd, void *buf, size_t count, off_t offset); 
-ssize_t pread(int fd, void *buf, size_t count, off_t offset) {
-	if (nfs_fd_list[fd].is_nfs == 1) {
+ssize_t (*real_pread)(int fd, void *buf, size_t count, off_t offset);
+ssize_t pread(int fd, void *buf, size_t count, off_t offset)
+{
+	if (nfs_fd_list[fd].is_nfs == 1)
+	{
 		int ret;
 
 		LD_NFS_DPRINTF(9, "pread(fd:%d offset:%d count:%d)", fd,
-			(int)offset, (int)count);
+					   (int)offset, (int)count);
 		if ((ret = nfs_pread(nfs_fd_list[fd].nfs, nfs_fd_list[fd].fh,
-				offset, count, buf)) < 0) {
+							 offset, count, buf)) < 0)
+		{
 			errno = -ret;
 			return -1;
 		}
@@ -224,13 +247,15 @@ ssize_t (*real_write)(int fd, const void *buf, size_t count);
 
 ssize_t write(int fd, const void *buf, size_t count)
 {
-	if (nfs_fd_list[fd].is_nfs == 1) {
+	if (nfs_fd_list[fd].is_nfs == 1)
+	{
 		int ret;
 
 		LD_NFS_DPRINTF(9, "write(fd:%d count:%d)", fd, (int)count);
 		if ((ret = nfs_write(nfs_fd_list[fd].nfs, nfs_fd_list[fd].fh,
-				count,
-				(char *)discard_const(buf))) < 0) {
+							 count,
+							 (char *)discard_const(buf))) < 0)
+		{
 			errno = -ret;
 			return -1;
 		}
@@ -239,16 +264,19 @@ ssize_t write(int fd, const void *buf, size_t count)
 	return real_write(fd, buf, count);
 }
 
-ssize_t (*real_pwrite)(int fd, const void *buf, size_t count, off_t offset); 
-ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset) {
-	if (nfs_fd_list[fd].is_nfs == 1) {
+ssize_t (*real_pwrite)(int fd, const void *buf, size_t count, off_t offset);
+ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset)
+{
+	if (nfs_fd_list[fd].is_nfs == 1)
+	{
 		int ret;
 
 		LD_NFS_DPRINTF(9, "pwrite(fd:%d offset:%d count:%d)", fd,
-			(int)offset, (int)count);
+					   (int)offset, (int)count);
 		if ((ret = nfs_pwrite(nfs_fd_list[fd].nfs, nfs_fd_list[fd].fh,
-				offset, count,
-				(char *)discard_const(buf))) < 0) {
+							  offset, count,
+							  (char *)discard_const(buf))) < 0)
+		{
 			errno = -ret;
 			return -1;
 		}
@@ -263,33 +291,37 @@ int dup2(int oldfd, int newfd)
 {
 	close(newfd);
 
-	if (nfs_fd_list[oldfd].is_nfs == 1) {
+	if (nfs_fd_list[oldfd].is_nfs == 1)
+	{
 		struct nfs_context *nfs;
 		struct nfs_url *url;
 		struct nfsfh *fh = NULL;
 		int ret, fd;
 
 		LD_NFS_DPRINTF(9, "dup2(%s:%d, %d)", nfs_fd_list[oldfd].path,
-			oldfd, newfd);
+					   oldfd, newfd);
 		nfs = nfs_init_context();
-		if (nfs == NULL) {
+		if (nfs == NULL)
+		{
 			LD_NFS_DPRINTF(1, "Failed to create context");
 			errno = ENOMEM;
 			return -1;
 		}
 
 		url = nfs_parse_url_full(nfs, nfs_fd_list[oldfd].path);
-		if (url == NULL) {
+		if (url == NULL)
+		{
 			LD_NFS_DPRINTF(1, "Failed to parse URL: %s\n",
-				nfs_get_error(nfs));
+						   nfs_get_error(nfs));
 			nfs_destroy_context(nfs);
 			errno = EINVAL;
 			return -1;
 		}
 
-		if (nfs_mount(nfs, url->server, url->path) != 0) {
+		if (nfs_mount(nfs, url->server, url->path) != 0)
+		{
 			LD_NFS_DPRINTF(1, "Failed to mount nfs share : %s\n",
-			       nfs_get_error(nfs));
+						   nfs_get_error(nfs));
 			nfs_destroy_url(url);
 			nfs_destroy_context(nfs);
 			errno = EINVAL;
@@ -297,9 +329,10 @@ int dup2(int oldfd, int newfd)
 		}
 
 		if ((ret = nfs_open(nfs, url->file, nfs_fd_list[oldfd].mode,
-				&fh)) != 0) {
+							&fh)) != 0)
+		{
 			LD_NFS_DPRINTF(1, "Failed to open nfs file : %s\n",
-			       nfs_get_error(nfs));
+						   nfs_get_error(nfs));
 			nfs_destroy_url(url);
 			nfs_destroy_context(nfs);
 			errno = -ret;
@@ -307,10 +340,12 @@ int dup2(int oldfd, int newfd)
 		}
 
 		/* We could actually end on the right descriptor by chance */
-		if (nfs_get_fd(nfs) != newfd) {
-			if (real_dup2(nfs_get_fd(nfs), newfd) < 0) {
+		if (nfs_get_fd(nfs) != newfd)
+		{
+			if (real_dup2(nfs_get_fd(nfs), newfd) < 0)
+			{
 				LD_NFS_DPRINTF(1, "Failed to dup2 file : %d",
-					errno);
+							   errno);
 				return -1;
 			}
 
@@ -319,25 +354,26 @@ int dup2(int oldfd, int newfd)
 		}
 
 		fd = nfs_get_fd(nfs);
-		if (fd >= NFS_MAX_FD) {
+		if (fd >= NFS_MAX_FD)
+		{
 			LD_NFS_DPRINTF(1, "Too many files open");
 			nfs_destroy_url(url);
 			nfs_destroy_context(nfs);
 			errno = ENFILE;
 			return -1;
-		}		
+		}
 
-		nfs_fd_list[fd].is_nfs     = 1;
-		nfs_fd_list[fd].nfs        = nfs;
-		nfs_fd_list[fd].fh         = fh;
-		nfs_fd_list[fd].path       = strdup(nfs_fd_list[oldfd].path);
-		nfs_fd_list[fd].flags      = nfs_fd_list[oldfd].flags;
-		nfs_fd_list[fd].mode       = nfs_fd_list[oldfd].mode;
+		nfs_fd_list[fd].is_nfs = 1;
+		nfs_fd_list[fd].nfs = nfs;
+		nfs_fd_list[fd].fh = fh;
+		nfs_fd_list[fd].path = strdup(nfs_fd_list[oldfd].path);
+		nfs_fd_list[fd].flags = nfs_fd_list[oldfd].flags;
+		nfs_fd_list[fd].mode = nfs_fd_list[oldfd].mode;
 
 		nfs_destroy_url(url);
 
 		LD_NFS_DPRINTF(9, "dup2(%s) successful",
-			nfs_fd_list[oldfd].path);
+					   nfs_fd_list[oldfd].path);
 		return fd;
 	}
 
@@ -349,8 +385,9 @@ int (*real_xstat)(int ver, __const char *path, struct stat *buf);
 int __xstat(int ver, const char *path, struct stat *buf)
 {
 	printf("[DEBUG ld_nfs.so] __xstat %s\n", path);
-	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
-		const char * addr_path_prefix = "nfs://172.17.0.3";
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6)))
+	{
+		const char *addr_path_prefix = "nfs://172.17.0.3";
 		char new_path[strlen(addr_path_prefix) + strlen(path) + 1];
 		sprintf(new_path, "%s%s", addr_path_prefix, path);
 		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
@@ -359,13 +396,52 @@ int __xstat(int ver, const char *path, struct stat *buf)
 
 		LD_NFS_DPRINTF(9, "__xstat(%s)", new_path);
 		fd = open(path, 0, 0);
-		if (fd == -1) {
+		if (fd == -1)
+		{
 			return fd;
 		}
 
-		ret = __fxstat(ver, fd, buf);
+		printf("__xstat opened fd=%d\n", fd);
+		if (nfs_fd_list[fd].is_nfs == 1)
+		{
+			int ret;
+			struct stat st;
+
+			printf("__xstat before nfs_stat\n");
+			if ((ret = nfs_stat(nfs_fd_list[fd].nfs, new_path, &st)) < 0)
+			{
+				errno = -ret;
+				printf("__xstat nfs_stat failed: %s\n", nfs_get_error(nfs_fd_list[fd].nfs));
+				return -1;
+			}
+
+			buf->st_dev = st.st_dev;
+			buf->st_ino = st.st_ino;
+			buf->st_mode = st.st_mode;
+			buf->st_nlink = st.st_nlink;
+			buf->st_uid = st.st_uid;
+			buf->st_gid = st.st_gid;
+			buf->st_rdev = st.st_rdev;
+			buf->st_size = st.st_size;
+			buf->st_blksize = st.st_blksize;
+			buf->st_blocks = st.st_blocks;
+			buf->st_atim.tv_sec = st.st_atim.tv_sec;
+			buf->st_atim.tv_nsec = st.st_atim.tv_nsec;
+			buf->st_mtim.tv_sec = st.st_mtim.tv_sec;
+			buf->st_mtim.tv_nsec = st.st_mtim.tv_nsec;
+			buf->st_ctim.tv_sec = st.st_ctim.tv_sec;
+			buf->st_ctim.tv_nsec = st.st_ctim.tv_nsec;
+
+			close(fd);
+			printf("DONE\n");
+
+			LD_NFS_DPRINTF(9, "__xstat(%d) success", fd);
+			return ret;
+		}
+
 		close(fd);
-		return ret;
+
+		return real_xstat(ver, path, buf);
 	}
 
 	return real_xstat(ver, path, buf);
@@ -376,8 +452,9 @@ int (*real_xstat64)(int ver, __const char *path, struct stat64 *buf);
 int __xstat64(int ver, const char *path, struct stat64 *buf)
 {
 	printf("[DEBUG ld_nfs.so] __xstat64 %s\n", path);
-	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
-		const char * addr_path_prefix = "nfs://172.17.0.3";
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6)))
+	{
+		const char *addr_path_prefix = "nfs://172.17.0.3";
 		char new_path[strlen(addr_path_prefix) + strlen(path) + 1];
 		sprintf(new_path, "%s%s", addr_path_prefix, path);
 		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
@@ -386,49 +463,48 @@ int __xstat64(int ver, const char *path, struct stat64 *buf)
 
 		LD_NFS_DPRINTF(9, "__xstat64(%s)", new_path);
 		fd = open(path, 0, 0);
-		if (fd == -1) {
+		if (fd == -1)
+		{
 			return fd;
 		}
 
-		ret = __fxstat64(ver, fd, buf);
+		if (nfs_fd_list[fd].is_nfs == 1)
+		{
+			int ret;
+			struct nfs_stat_64 st64;
+
+			if ((ret = nfs_stat64(nfs_fd_list[fd].nfs, path, &st64)) < 0)
+			{
+				errno = -ret;
+				return -1;
+			}
+
+			buf->st_dev = st64.nfs_dev;
+			buf->st_ino = st64.nfs_ino;
+			buf->st_mode = st64.nfs_mode;
+			buf->st_nlink = st64.nfs_nlink;
+			buf->st_uid = st64.nfs_uid;
+			buf->st_gid = st64.nfs_gid;
+			buf->st_rdev = st64.nfs_rdev;
+			buf->st_size = st64.nfs_size;
+			buf->st_blksize = st64.nfs_blksize;
+			buf->st_blocks = st64.nfs_blocks;
+			buf->st_atim.tv_sec = st64.nfs_atime;
+			buf->st_mtim.tv_sec = st64.nfs_mtime;
+			buf->st_ctim.tv_sec = st64.nfs_ctime;
+
+			close(fd);
+
+			LD_NFS_DPRINTF(9, "__xstat64(%d) success", fd);
+			return ret;
+		}
+
 		close(fd);
-		return ret;
+
+		return real_xstat64(ver, path, buf);
 	}
 
 	return real_xstat64(ver, path, buf);
-}
-
-int _call_nfs_vstatvfs() {
-	if (nfs_fd_list[fd].is_nfs == 1) {
-		int ret;
-		struct nfs_stat_64 st64;
-
-		LD_NFS_DPRINTF(9, "__fxstat(%d)", fd);
-		if ((ret = nfs_statvfs(nfs_fd_list[fd].nfs, nfs_fd_list[fd].fh,
-				(void *)&st64)) < 0) {
-			errno = -ret;
-			return -1;
-		}
-
-		buf->st_dev     = st64.nfs_dev;
-		buf->st_ino     = st64.nfs_ino;
-		buf->st_mode    = st64.nfs_mode;
-		buf->st_nlink   = st64.nfs_nlink;
-		buf->st_uid     = st64.nfs_uid;
-		buf->st_gid     = st64.nfs_gid;
-		buf->st_rdev    = st64.nfs_rdev;
-		buf->st_size    = st64.nfs_size;
-		buf->st_blksize = st64.nfs_blksize;
-		buf->st_blocks  = st64.nfs_blocks;
-		buf->st_atim.tv_sec   = st64.nfs_atime;
-		buf->st_mtim.tv_sec   = st64.nfs_mtime;
-		buf->st_ctim.tv_sec   = st64.nfs_ctime;
-
-		LD_NFS_DPRINTF(9, "__fxstat(%d) success", fd);
-		return ret;
-	}
-
-	return real_fxstat(ver, fd, buf);
 }
 
 int (*real_lxstat)(int ver, __const char *path, struct stat *buf);
@@ -436,8 +512,9 @@ int (*real_lxstat)(int ver, __const char *path, struct stat *buf);
 int __lxstat(int ver, const char *path, struct stat *buf)
 {
 	printf("[DEBUG ld_nfs.so] __lxstat %s\n", path);
-	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
-		const char * addr_path_prefix = "nfs://172.17.0.3";
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6)))
+	{
+		const char *addr_path_prefix = "nfs://172.17.0.3";
 		char new_path[strlen(addr_path_prefix) + strlen(path) + 1];
 		sprintf(new_path, "%s%s", addr_path_prefix, path);
 		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
@@ -446,13 +523,45 @@ int __lxstat(int ver, const char *path, struct stat *buf)
 
 		LD_NFS_DPRINTF(9, "__lxstat(%s)", new_path);
 		fd = open(path, 0, 0);
-		if (fd == -1) {
+		if (fd == -1)
+		{
 			return fd;
 		}
 
-		ret = __fxstat(ver, fd, buf);
+		if (nfs_fd_list[fd].is_nfs == 1)
+		{
+			int ret;
+			struct nfs_stat_64 st64;
+
+			if ((ret = nfs_lstat64(nfs_fd_list[fd].nfs, path, &st64)) < 0)
+			{
+				errno = -ret;
+				return -1;
+			}
+
+			buf->st_dev = st64.nfs_dev;
+			buf->st_ino = st64.nfs_ino;
+			buf->st_mode = st64.nfs_mode;
+			buf->st_nlink = st64.nfs_nlink;
+			buf->st_uid = st64.nfs_uid;
+			buf->st_gid = st64.nfs_gid;
+			buf->st_rdev = st64.nfs_rdev;
+			buf->st_size = st64.nfs_size;
+			buf->st_blksize = st64.nfs_blksize;
+			buf->st_blocks = st64.nfs_blocks;
+			buf->st_atim.tv_sec = st64.nfs_atime;
+			buf->st_mtim.tv_sec = st64.nfs_mtime;
+			buf->st_ctim.tv_sec = st64.nfs_ctime;
+
+			close(fd);
+
+			LD_NFS_DPRINTF(9, "__lxstat(%d) success", fd);
+			return ret;
+		}
+
 		close(fd);
-		return ret;
+
+		return real_lxstat(ver, path, buf);
 	}
 
 	return real_lxstat(ver, path, buf);
@@ -463,8 +572,9 @@ int (*real_lxstat64)(int ver, __const char *path, struct stat64 *buf);
 int __lxstat64(int ver, const char *path, struct stat64 *buf)
 {
 	printf("[DEBUG ld_nfs.so] __lxstat64 %s\n", path);
-	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
-		const char * addr_path_prefix = "nfs://172.17.0.3";
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6)))
+	{
+		const char *addr_path_prefix = "nfs://172.17.0.3";
 		char new_path[strlen(addr_path_prefix) + strlen(path) + 1];
 		sprintf(new_path, "%s%s", addr_path_prefix, path);
 		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
@@ -473,13 +583,45 @@ int __lxstat64(int ver, const char *path, struct stat64 *buf)
 
 		LD_NFS_DPRINTF(9, "__lxstat64(%s)", new_path);
 		fd = open(path, 0, 0);
-		if (fd == -1) {
+		if (fd == -1)
+		{
 			return fd;
 		}
 
-		ret = __fxstat64(ver, fd, buf);
+		if (nfs_fd_list[fd].is_nfs == 1)
+		{
+			int ret;
+			struct nfs_stat_64 st64;
+
+			if ((ret = nfs_lstat64(nfs_fd_list[fd].nfs, path, &st64)) < 0)
+			{
+				errno = -ret;
+				return -1;
+			}
+
+			buf->st_dev = st64.nfs_dev;
+			buf->st_ino = st64.nfs_ino;
+			buf->st_mode = st64.nfs_mode;
+			buf->st_nlink = st64.nfs_nlink;
+			buf->st_uid = st64.nfs_uid;
+			buf->st_gid = st64.nfs_gid;
+			buf->st_rdev = st64.nfs_rdev;
+			buf->st_size = st64.nfs_size;
+			buf->st_blksize = st64.nfs_blksize;
+			buf->st_blocks = st64.nfs_blocks;
+			buf->st_atim.tv_sec = st64.nfs_atime;
+			buf->st_mtim.tv_sec = st64.nfs_mtime;
+			buf->st_ctim.tv_sec = st64.nfs_ctime;
+
+			close(fd);
+
+			LD_NFS_DPRINTF(9, "__lxstat64(%d) success", fd);
+			return ret;
+		}
+
 		close(fd);
-		return ret;
+
+		return real_lxstat64(ver, path, buf);
 	}
 
 	return real_lxstat64(ver, path, buf);
@@ -489,30 +631,32 @@ int (*real_fxstat)(int ver, int fd, struct stat *buf);
 
 int __fxstat(int ver, int fd, struct stat *buf)
 {
-	if (nfs_fd_list[fd].is_nfs == 1) {
+	if (nfs_fd_list[fd].is_nfs == 1)
+	{
 		int ret;
 		struct nfs_stat_64 st64;
 
 		LD_NFS_DPRINTF(9, "__fxstat(%d)", fd);
 		if ((ret = nfs_fstat64(nfs_fd_list[fd].nfs, nfs_fd_list[fd].fh,
-				(void *)&st64)) < 0) {
+							   (void *)&st64)) < 0)
+		{
 			errno = -ret;
 			return -1;
 		}
 
-		buf->st_dev     = st64.nfs_dev;
-		buf->st_ino     = st64.nfs_ino;
-		buf->st_mode    = st64.nfs_mode;
-		buf->st_nlink   = st64.nfs_nlink;
-		buf->st_uid     = st64.nfs_uid;
-		buf->st_gid     = st64.nfs_gid;
-		buf->st_rdev    = st64.nfs_rdev;
-		buf->st_size    = st64.nfs_size;
+		buf->st_dev = st64.nfs_dev;
+		buf->st_ino = st64.nfs_ino;
+		buf->st_mode = st64.nfs_mode;
+		buf->st_nlink = st64.nfs_nlink;
+		buf->st_uid = st64.nfs_uid;
+		buf->st_gid = st64.nfs_gid;
+		buf->st_rdev = st64.nfs_rdev;
+		buf->st_size = st64.nfs_size;
 		buf->st_blksize = st64.nfs_blksize;
-		buf->st_blocks  = st64.nfs_blocks;
-		buf->st_atim.tv_sec   = st64.nfs_atime;
-		buf->st_mtim.tv_sec   = st64.nfs_mtime;
-		buf->st_ctim.tv_sec   = st64.nfs_ctime;
+		buf->st_blocks = st64.nfs_blocks;
+		buf->st_atim.tv_sec = st64.nfs_atime;
+		buf->st_mtim.tv_sec = st64.nfs_mtime;
+		buf->st_ctim.tv_sec = st64.nfs_ctime;
 
 		LD_NFS_DPRINTF(9, "__fxstat(%d) success", fd);
 		return ret;
@@ -525,30 +669,32 @@ int (*real_fxstat64)(int ver, int fd, struct stat64 *buf);
 
 int __fxstat64(int ver, int fd, struct stat64 *buf)
 {
-	if (nfs_fd_list[fd].is_nfs == 1) {
+	if (nfs_fd_list[fd].is_nfs == 1)
+	{
 		int ret;
 		struct nfs_stat_64 st64;
 
 		LD_NFS_DPRINTF(9, "__fxstat64(%d)", fd);
 		if ((ret = nfs_fstat64(nfs_fd_list[fd].nfs, nfs_fd_list[fd].fh,
-				(void *)&st64)) < 0) {
+							   (void *)&st64)) < 0)
+		{
 			errno = -ret;
 			return -1;
 		}
 
-		buf->st_dev     = st64.nfs_dev;
-		buf->st_ino     = st64.nfs_ino;
-		buf->st_mode    = st64.nfs_mode;
-		buf->st_nlink   = st64.nfs_nlink;
-		buf->st_uid     = st64.nfs_uid;
-		buf->st_gid     = st64.nfs_gid;
-		buf->st_rdev    = st64.nfs_rdev;
-		buf->st_size    = st64.nfs_size;
+		buf->st_dev = st64.nfs_dev;
+		buf->st_ino = st64.nfs_ino;
+		buf->st_mode = st64.nfs_mode;
+		buf->st_nlink = st64.nfs_nlink;
+		buf->st_uid = st64.nfs_uid;
+		buf->st_gid = st64.nfs_gid;
+		buf->st_rdev = st64.nfs_rdev;
+		buf->st_size = st64.nfs_size;
 		buf->st_blksize = st64.nfs_blksize;
-		buf->st_blocks  = st64.nfs_blocks;
-		buf->st_atim.tv_sec   = st64.nfs_atime;
-		buf->st_mtim.tv_sec   = st64.nfs_mtime;
-		buf->st_ctim.tv_sec   = st64.nfs_ctime;
+		buf->st_blocks = st64.nfs_blocks;
+		buf->st_atim.tv_sec = st64.nfs_atime;
+		buf->st_mtim.tv_sec = st64.nfs_mtime;
+		buf->st_ctim.tv_sec = st64.nfs_ctime;
 
 		LD_NFS_DPRINTF(9, "__fxstat64(%d) success", fd);
 		return ret;
@@ -562,7 +708,8 @@ int (*real_fxstatat)(int ver, int fd, const char *path, struct stat *buf, int fl
 int __fxstatat(int ver, int fd, const char *path, struct stat *buf, int flag)
 {
 	printf("[DEBUG ld_nfs.so] __fxstatat %s\n", path);
-	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6)))
+	{
 		return __xstat(ver, path, buf);
 	}
 
@@ -574,7 +721,8 @@ int (*real_fxstatat64)(int ver, int fd, const char *path, struct stat64 *buf, in
 int __fxstatat64(int ver, int fd, const char *path, struct stat64 *buf, int flag)
 {
 	printf("[DEBUG ld_nfs.so] __fxstatat64 %s\n", path);
-	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6)))
+	{
 		return __xstat64(ver, path, buf);
 	}
 	return real_fxstatat64(ver, fd, path, buf, flag);
@@ -584,7 +732,8 @@ int (*real_fallocate)(int fd, int mode, off_t offset, off_t len);
 
 int fallocate(int fd, int mode, off_t offset, off_t len)
 {
-	if (nfs_fd_list[fd].is_nfs == 1) {
+	if (nfs_fd_list[fd].is_nfs == 1)
+	{
 		LD_NFS_DPRINTF(9, "fallocate(%d)", fd);
 		errno = EOPNOTSUPP;
 		return -1;
@@ -597,13 +746,15 @@ int (*real_ftruncate)(int fd, off_t len);
 
 int ftruncate(int fd, off_t len)
 {
-	if (nfs_fd_list[fd].is_nfs == 1) {
+	if (nfs_fd_list[fd].is_nfs == 1)
+	{
 		int ret;
 
 		LD_NFS_DPRINTF(9, "ftruncate(%d, %d)", fd, (int)len);
 		if ((ret = nfs_ftruncate(nfs_fd_list[fd].nfs,
-				nfs_fd_list[fd].fh,
-				len)) < 0) {
+								 nfs_fd_list[fd].fh,
+								 len)) < 0)
+		{
 			errno = -ret;
 			return -1;
 		}
@@ -618,8 +769,9 @@ int (*real_truncate)(const char *path, off_t len);
 int truncate(const char *path, off_t len)
 {
 	printf("[DEBUG ld_nfs.so] truncate %s\n", path);
-	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
-		const char * addr_path_prefix = "nfs://172.17.0.3";
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6)))
+	{
+		const char *addr_path_prefix = "nfs://172.17.0.3";
 		char new_path[strlen(addr_path_prefix) + strlen(path) + 1];
 		sprintf(new_path, "%s%s", addr_path_prefix, path);
 		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
@@ -628,7 +780,8 @@ int truncate(const char *path, off_t len)
 
 		LD_NFS_DPRINTF(9, "truncate(%s, %d)", new_path, (int)len);
 		fd = open(path, 0, 0);
-		if (fd == -1) {
+		if (fd == -1)
+		{
 			return fd;
 		}
 
@@ -644,13 +797,15 @@ int (*real_fchmod)(int fd, mode_t mode);
 
 int fchmod(int fd, mode_t mode)
 {
-	if (nfs_fd_list[fd].is_nfs == 1) {
+	if (nfs_fd_list[fd].is_nfs == 1)
+	{
 		int ret;
 
 		LD_NFS_DPRINTF(9, "fchmod(%d, %o)", fd, (int)mode);
 		if ((ret = nfs_fchmod(nfs_fd_list[fd].nfs,
-				nfs_fd_list[fd].fh,
-				mode)) < 0) {
+							  nfs_fd_list[fd].fh,
+							  mode)) < 0)
+		{
 			errno = -ret;
 			return -1;
 		}
@@ -665,8 +820,9 @@ int (*real_chmod)(const char *path, mode_t mode);
 int chmod(const char *path, mode_t mode)
 {
 	printf("[DEBUG ld_nfs.so] chmod %s\n", path);
-	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
-		const char * addr_path_prefix = "nfs://172.17.0.3";
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6)))
+	{
+		const char *addr_path_prefix = "nfs://172.17.0.3";
 		char new_path[strlen(addr_path_prefix) + strlen(path) + 1];
 		sprintf(new_path, "%s%s", addr_path_prefix, path);
 		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
@@ -675,7 +831,8 @@ int chmod(const char *path, mode_t mode)
 
 		LD_NFS_DPRINTF(9, "chmod(%s, %o)", new_path, (int)mode);
 		fd = open(path, 0, 0);
-		if (fd == -1) {
+		if (fd == -1)
+		{
 			return fd;
 		}
 
@@ -692,7 +849,8 @@ int (*real_fchmodat)(int fd, const char *path, mode_t mode, int flags);
 int fchmodat(int fd, const char *path, mode_t mode, int flags)
 {
 	printf("[DEBUG ld_nfs.so] fchomdat %s\n", path);
-	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6)))
+	{
 		return chmod(path, mode);
 	}
 
@@ -703,13 +861,15 @@ int (*real_fchown)(int fd, __uid_t uid, __gid_t gid);
 
 int fchown(int fd, __uid_t uid, __gid_t gid)
 {
-	if (nfs_fd_list[fd].is_nfs == 1) {
+	if (nfs_fd_list[fd].is_nfs == 1)
+	{
 		int ret;
 
 		LD_NFS_DPRINTF(9, "fchown(%d, %o, %o)", fd, (int)uid, (int)gid);
 		if ((ret = nfs_fchown(nfs_fd_list[fd].nfs,
-				nfs_fd_list[fd].fh,
-				uid, gid)) < 0) {
+							  nfs_fd_list[fd].fh,
+							  uid, gid)) < 0)
+		{
 			errno = -ret;
 			return -1;
 		}
@@ -724,8 +884,9 @@ int (*real_chown)(const char *path, __uid_t uid, __gid_t gid);
 int chown(const char *path, __uid_t uid, __gid_t gid)
 {
 	printf("[DEBUG ld_nfs.so] chown %s\n", path);
-	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
-		const char * addr_path_prefix = "nfs://172.17.0.3";
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6)))
+	{
+		const char *addr_path_prefix = "nfs://172.17.0.3";
 		char new_path[strlen(addr_path_prefix) + strlen(path) + 1];
 		sprintf(new_path, "%s%s", addr_path_prefix, path);
 		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
@@ -734,7 +895,8 @@ int chown(const char *path, __uid_t uid, __gid_t gid)
 
 		LD_NFS_DPRINTF(9, "chown(%s, %o, %o)", new_path, (int)uid, (int)gid);
 		fd = open(path, 0, 0);
-		if (fd == -1) {
+		if (fd == -1)
+		{
 			return fd;
 		}
 
@@ -751,7 +913,8 @@ int (*real_fchownat)(int fd, const char *path, __uid_t uid, __gid_t gid, int fla
 int fchownat(int fd, const char *path, uid_t uid, gid_t gid, int flags)
 {
 	printf("[DEBUG ld_nfs.so] fchownat %s\n", path);
-	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6)))
+	{
 		return chown(path, uid, gid);
 	}
 
@@ -771,163 +934,191 @@ static void __attribute__((constructor)) _init(void)
 {
 	int i;
 
-	if (getenv("LD_NFS_DEBUG") != NULL) {
+	if (getenv("LD_NFS_DEBUG") != NULL)
+	{
 		debug = atoi(getenv("LD_NFS_DEBUG"));
 	}
 
-	if (getenv("LD_NFS_UID") != NULL) {
+	if (getenv("LD_NFS_UID") != NULL)
+	{
 		nfsuid = atoi(getenv("LD_NFS_UID"));
 	}
 
-	if (getenv("LD_NFS_GID") != NULL) {
+	if (getenv("LD_NFS_GID") != NULL)
+	{
 		nfsgid = atoi(getenv("LD_NFS_GID"));
 	}
 
 	real_open = dlsym(RTLD_NEXT, "open");
-	if (real_open == NULL) {
+	if (real_open == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(open)");
 		exit(10);
 	}
 
 	real_close = dlsym(RTLD_NEXT, "close");
-	if (real_close == NULL) {
+	if (real_close == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(close)");
 		exit(10);
 	}
 
 	real_read = dlsym(RTLD_NEXT, "read");
-	if (real_read == NULL) {
+	if (real_read == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(read)");
 		exit(10);
 	}
 
 	real_pread = dlsym(RTLD_NEXT, "pread");
-	if (real_pread == NULL) {
+	if (real_pread == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(pread)");
 		exit(10);
 	}
 
 	real_write = dlsym(RTLD_NEXT, "write");
-	if (real_write == NULL) {
+	if (real_write == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(write)");
 		exit(10);
 	}
 
 	real_pwrite = dlsym(RTLD_NEXT, "pwrite");
-	if (real_pwrite == NULL) {
+	if (real_pwrite == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(pwrite)");
 		exit(10);
 	}
 
 	real_xstat = dlsym(RTLD_NEXT, "__xstat");
-	if (real_xstat == NULL) {
+	if (real_xstat == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(__xstat)");
 		exit(10);
 	}
 
 	real_xstat64 = dlsym(RTLD_NEXT, "__xstat64");
-	if (real_xstat64 == NULL) {
+	if (real_xstat64 == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(__xstat64)");
 	}
 
 	real_lxstat = dlsym(RTLD_NEXT, "__lxstat");
-	if (real_lxstat == NULL) {
+	if (real_lxstat == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(__lxstat)");
 		exit(10);
 	}
 
 	real_lxstat64 = dlsym(RTLD_NEXT, "__lxstat64");
-	if (real_lxstat64 == NULL) {
+	if (real_lxstat64 == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(_lxstat64)");
 		exit(10);
 	}
 
 	real_fxstat = dlsym(RTLD_NEXT, "__fxstat");
-	if (real_fxstat == NULL) {
+	if (real_fxstat == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(__fxstat)");
 		exit(10);
 	}
 
 	real_fxstat64 = dlsym(RTLD_NEXT, "__fxstat64");
-	if (real_fxstat64 == NULL) {
+	if (real_fxstat64 == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(__fxstat64)");
 		exit(10);
 	}
 
 	real_fxstatat = dlsym(RTLD_NEXT, "__fxstatat");
-	if (real_fxstatat == NULL) {
+	if (real_fxstatat == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(__fxstatat)");
 		exit(10);
 	}
 
 	real_fxstatat64 = dlsym(RTLD_NEXT, "__fxstatat64");
-	if (real_fxstatat64 == NULL) {
+	if (real_fxstatat64 == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(__fxstatat64)");
 		exit(10);
 	}
 
 	real_fallocate = dlsym(RTLD_NEXT, "fallocate");
-	if (real_fallocate == NULL) {
+	if (real_fallocate == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(fallocate)");
 		exit(10);
 	}
 
 	real_dup2 = dlsym(RTLD_NEXT, "dup2");
-	if (real_dup2 == NULL) {
+	if (real_dup2 == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(dup2)");
 		exit(10);
 	}
 
 	real_truncate = dlsym(RTLD_NEXT, "truncate");
-	if (real_truncate == NULL) {
+	if (real_truncate == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(truncate)");
 		exit(10);
 	}
 
 	real_ftruncate = dlsym(RTLD_NEXT, "ftruncate");
-	if (real_ftruncate == NULL) {
+	if (real_ftruncate == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(ftruncate)");
 		exit(10);
 	}
 
 	real_chmod = dlsym(RTLD_NEXT, "chmod");
-	if (real_chmod == NULL) {
+	if (real_chmod == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(chmod)");
 		exit(10);
 	}
 
 	real_fchmod = dlsym(RTLD_NEXT, "fchmod");
-	if (real_fchmod == NULL) {
+	if (real_fchmod == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(fchmod)");
 		exit(10);
 	}
 
 	real_fchmodat = dlsym(RTLD_NEXT, "fchmodat");
-	if (real_fchmodat == NULL) {
+	if (real_fchmodat == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(fchmodat)");
 		exit(10);
 	}
 
 	real_chown = dlsym(RTLD_NEXT, "chown");
-	if (real_chown == NULL) {
+	if (real_chown == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(chown)");
 		exit(10);
 	}
 
 	real_fchown = dlsym(RTLD_NEXT, "fchown");
-	if (real_fchown == NULL) {
+	if (real_fchown == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(fchown)");
 		exit(10);
 	}
 
 	real_fchownat = dlsym(RTLD_NEXT, "fchownat");
-	if (real_fchownat == NULL) {
+	if (real_fchownat == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(fchownat)");
 		exit(10);
 	}
 
 	real_readdir = dlsym(RTLD_NEXT, "readdir");
-	if (real_readdir == NULL) {
+	if (real_readdir == NULL)
+	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(readdir)");
 		exit(10);
 	}
