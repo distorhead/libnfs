@@ -67,13 +67,20 @@ int (*real_open)(__const char *path, int flags, mode_t mode);
 
 int open(const char *path, int flags, mode_t mode)
 {
-	if (!strncmp(path, "nfs:", 4)) {
+	printf("[DEBUG ld_nfs.so] open %s\n", path);
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
+		const char * trim_path = path + (strlen(path) == 6 ? 6 : 7);
+		const char * addr_path_prefix = "nfs://172.17.0.3/cache/";
+		char new_path[strlen(addr_path_prefix) + strlen(trim_path) + 1];
+		sprintf(new_path, "%s%s", addr_path_prefix, trim_path);
+		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
+
 		struct nfs_context *nfs;
 		struct nfs_url *url;
 		struct nfsfh *fh = NULL;
 		int ret, fd;
 
-		LD_NFS_DPRINTF(9, "open(%s, %x, %o)", path, flags, mode);
+		LD_NFS_DPRINTF(9, "open(%s, %x, %o)", new_path, flags, mode);
 		nfs = nfs_init_context();
 		if (nfs == NULL) {
 			LD_NFS_DPRINTF(1, "Failed to create context");
@@ -86,7 +93,7 @@ int open(const char *path, int flags, mode_t mode)
 		if (nfsgid >= 0)
 			nfs_set_gid(nfs, nfsgid);
 
-		url = nfs_parse_url_full(nfs, path);
+		url = nfs_parse_url_full(nfs, new_path);
 		if (url == NULL) {
 			LD_NFS_DPRINTF(1, "Failed to parse URL: %s\n",
 				nfs_get_error(nfs));
@@ -136,13 +143,13 @@ int open(const char *path, int flags, mode_t mode)
 		nfs_fd_list[fd].is_nfs     = 1;
 		nfs_fd_list[fd].nfs        = nfs;
 		nfs_fd_list[fd].fh         = fh;
-		nfs_fd_list[fd].path       = strdup(path);
+		nfs_fd_list[fd].path       = strdup(new_path);
 		nfs_fd_list[fd].flags      = flags;
 		nfs_fd_list[fd].mode       = mode;
 
 		nfs_destroy_url(url);
 
-		LD_NFS_DPRINTF(9, "open(%s) == %d", path, fd);
+		LD_NFS_DPRINTF(9, "open(%s) == %d", new_path, fd);
 		return fd;
 	}
 
@@ -343,11 +350,18 @@ int (*real_xstat)(int ver, __const char *path, struct stat *buf);
 
 int __xstat(int ver, const char *path, struct stat *buf)
 {
-	if (!strncmp(path, "nfs:", 4)) {
+	printf("[DEBUG ld_nfs.so] __xstat %s\n", path);
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
+		const char * trim_path = path + (strlen(path) == 6 ? 6 : 7);
+		const char * addr_path_prefix = "nfs://172.17.0.3/cache/";
+		char new_path[strlen(addr_path_prefix) + strlen(trim_path) + 1];
+		sprintf(new_path, "%s%s", addr_path_prefix, trim_path);
+		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
+
 		int fd, ret;
 
-		LD_NFS_DPRINTF(9, "__xstat(%s)", path);
-		fd = open(path, 0, 0);
+		LD_NFS_DPRINTF(9, "__xstat(%s)", new_path);
+		fd = open(new_path, 0, 0);
 		if (fd == -1) {
 			return fd;
 		}
@@ -364,11 +378,18 @@ int (*real_xstat64)(int ver, __const char *path, struct stat64 *buf);
 
 int __xstat64(int ver, const char *path, struct stat64 *buf)
 {
-	if (!strncmp(path, "nfs:", 4)) {
+	printf("[DEBUG ld_nfs.so] __xstat64 %s\n", path);
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
+		const char * trim_path = path + (strlen(path) == 6 ? 6 : 7);
+		const char * addr_path_prefix = "nfs://172.17.0.3/cache/";
+		char new_path[strlen(addr_path_prefix) + strlen(trim_path) + 1];
+		sprintf(new_path, "%s%s", addr_path_prefix, trim_path);
+		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
+
 		int fd, ret;
 
-		LD_NFS_DPRINTF(9, "__xstat64(%s)", path);
-		fd = open(path, 0, 0);
+		LD_NFS_DPRINTF(9, "__xstat64(%s)", new_path);
+		fd = open(new_path, 0, 0);
 		if (fd == -1) {
 			return fd;
 		}
@@ -385,11 +406,18 @@ int (*real_lxstat)(int ver, __const char *path, struct stat *buf);
 
 int __lxstat(int ver, const char *path, struct stat *buf)
 {
-	if (!strncmp(path, "nfs:", 4)) {
+	printf("[DEBUG ld_nfs.so] __lxstat %s\n", path);
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
+		const char * trim_path = path + (strlen(path) == 6 ? 6 : 7);
+		const char * addr_path_prefix = "nfs://172.17.0.3/cache/";
+		char new_path[strlen(addr_path_prefix) + strlen(trim_path) + 1];
+		sprintf(new_path, "%s%s", addr_path_prefix, trim_path);
+		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
+
 		int fd, ret;
 
-		LD_NFS_DPRINTF(9, "__lxstat(%s)", path);
-		fd = open(path, 0, 0);
+		LD_NFS_DPRINTF(9, "__lxstat(%s)", new_path);
+		fd = open(new_path, 0, 0);
 		if (fd == -1) {
 			return fd;
 		}
@@ -406,11 +434,18 @@ int (*real_lxstat64)(int ver, __const char *path, struct stat64 *buf);
 
 int __lxstat64(int ver, const char *path, struct stat64 *buf)
 {
-	if (!strncmp(path, "nfs:", 4)) {
+	printf("[DEBUG ld_nfs.so] __lxstat64 %s\n", path);
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
+		const char * trim_path = path + (strlen(path) == 6 ? 6 : 7);
+		const char * addr_path_prefix = "nfs://172.17.0.3/cache/";
+		char new_path[strlen(addr_path_prefix) + strlen(trim_path) + 1];
+		sprintf(new_path, "%s%s", addr_path_prefix, trim_path);
+		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
+
 		int fd, ret;
 
-		LD_NFS_DPRINTF(9, "__lxstat64(%s)", path);
-		fd = open(path, 0, 0);
+		LD_NFS_DPRINTF(9, "__lxstat64(%s)", new_path);
+		fd = open(new_path, 0, 0);
 		if (fd == -1) {
 			return fd;
 		}
@@ -499,7 +534,8 @@ int (*real_fxstatat)(int ver, int fd, const char *path, struct stat *buf, int fl
 
 int __fxstatat(int ver, int fd, const char *path, struct stat *buf, int flag)
 {
-	if (!strncmp(path, "nfs:", 4)) {
+	printf("[DEBUG ld_nfs.so] __fxstatat %s\n", path);
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
 		return __xstat(ver, path, buf);
 	}
 
@@ -510,7 +546,8 @@ int (*real_fxstatat64)(int ver, int fd, const char *path, struct stat64 *buf, in
 
 int __fxstatat64(int ver, int fd, const char *path, struct stat64 *buf, int flag)
 {
-	if (!strncmp(path, "nfs:", 4)) {
+	printf("[DEBUG ld_nfs.so] __fxstatat64 %s\n", path);
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
 		return __xstat64(ver, path, buf);
 	}
 	return real_fxstatat64(ver, fd, path, buf, flag);
@@ -553,11 +590,18 @@ int (*real_truncate)(const char *path, off_t len);
 
 int truncate(const char *path, off_t len)
 {
-	if (!strncmp(path, "nfs:", 4)) {
+	printf("[DEBUG ld_nfs.so] truncate %s\n", path);
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
+		const char * trim_path = path + (strlen(path) == 6 ? 6 : 7);
+		const char * addr_path_prefix = "nfs://172.17.0.3/cache/";
+		char new_path[strlen(addr_path_prefix) + strlen(trim_path) + 1];
+		sprintf(new_path, "%s%s", addr_path_prefix, trim_path);
+		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
+
 		int fd, ret;
 
-		LD_NFS_DPRINTF(9, "truncate(%s, %d)", path, (int)len);
-		fd = open(path, 0, 0);
+		LD_NFS_DPRINTF(9, "truncate(%s, %d)", new_path, (int)len);
+		fd = open(new_path, 0, 0);
 		if (fd == -1) {
 			return fd;
 		}
@@ -594,11 +638,18 @@ int (*real_chmod)(const char *path, mode_t mode);
 
 int chmod(const char *path, mode_t mode)
 {
-	if (!strncmp(path, "nfs:", 4)) {
+	printf("[DEBUG ld_nfs.so] chmod %s\n", path);
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
+		const char * trim_path = path + (strlen(path) == 6 ? 6 : 7);
+		const char * addr_path_prefix = "nfs://172.17.0.3/cache/";
+		char new_path[strlen(addr_path_prefix) + strlen(trim_path) + 1];
+		sprintf(new_path, "%s%s", addr_path_prefix, trim_path);
+		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
+
 		int fd, ret;
 
-		LD_NFS_DPRINTF(9, "chmod(%s, %o)", path, (int)mode);
-		fd = open(path, 0, 0);
+		LD_NFS_DPRINTF(9, "chmod(%s, %o)", new_path, (int)mode);
+		fd = open(new_path, 0, 0);
 		if (fd == -1) {
 			return fd;
 		}
@@ -615,7 +666,8 @@ int (*real_fchmodat)(int fd, const char *path, mode_t mode, int flags);
 
 int fchmodat(int fd, const char *path, mode_t mode, int flags)
 {
-	if (!strncmp(path, "nfs:", 4)) {
+	printf("[DEBUG ld_nfs.so] fchomdat %s\n", path);
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
 		return chmod(path, mode);
 	}
 
@@ -646,11 +698,18 @@ int (*real_chown)(const char *path, __uid_t uid, __gid_t gid);
 
 int chown(const char *path, __uid_t uid, __gid_t gid)
 {
-	if (!strncmp(path, "nfs:", 4)) {
+	printf("[DEBUG ld_nfs.so] chown %s\n", path);
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
+		const char * trim_path = path + (strlen(path) == 6 ? 6 : 7);
+		const char * addr_path_prefix = "nfs://172.17.0.3/cache/";
+		char new_path[strlen(addr_path_prefix) + strlen(trim_path) + 1];
+		sprintf(new_path, "%s%s", addr_path_prefix, trim_path);
+		printf("[DEBUG ld_nfs.so] changed path to %s\n", new_path);
+
 		int fd, ret;
 
-		LD_NFS_DPRINTF(9, "chown(%s, %o, %o)", path, (int)uid, (int)gid);
-		fd = open(path, 0, 0);
+		LD_NFS_DPRINTF(9, "chown(%s, %o, %o)", new_path, (int)uid, (int)gid);
+		fd = open(new_path, 0, 0);
 		if (fd == -1) {
 			return fd;
 		}
@@ -667,7 +726,8 @@ int (*real_fchownat)(int fd, const char *path, __uid_t uid, __gid_t gid, int fla
 
 int fchownat(int fd, const char *path, uid_t uid, gid_t gid, int flags)
 {
-	if (!strncmp(path, "nfs:", 4)) {
+	printf("[DEBUG ld_nfs.so] fchownat %s\n", path);
+	if (!strncmp(path, "/cache/", 7) || (strlen(path) == 6 && !strncmp(path, "/cache", 6))) {
 		return chown(path, uid, gid);
 	}
 
