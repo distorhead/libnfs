@@ -192,6 +192,22 @@ int open64(__const char *input_path, int flags, mode_t mode)
 	return open(input_path, flags | O_LARGEFILE, mode);
 }
 
+int (*real_openat_2)(int __fd, const char *__path, int __oflag);
+
+int openat_2(int __fd, const char *__path, int __oflag)
+{
+	printf("[DEBUG ld_nfs.so openat input_path=%s\n", __path);
+	return real_openat2(__fd, __path, __oflag);
+}
+
+int (*real_openat)(int __fd, const char *__file, int __oflag, ...);
+
+int openat(int __fd, const char *__file, int __oflag, ...)
+{
+	printf("[DEBUG ld_nfs.so openat dirfd=%d input_path=%s\n", __fd, __file);
+	return real_openat(__fd, __file, __oflag);
+}
+
 int (*real_close)(int fd);
 
 int close(int fd)
@@ -937,6 +953,20 @@ static void __attribute__((constructor)) _init(void)
 	if (real_open == NULL)
 	{
 		LD_NFS_DPRINTF(0, "Failed to dlsym(open)");
+		exit(10);
+	}
+
+	real_openat_2 = dlsym(RTLD_NEXT, "__openat_2");
+	if (real_openat_2 == NULL)
+	{
+		LD_NFS_DPRINTF(0, "Failed to dlsym(__openat_2)");
+		exit(10);
+	}
+
+	real_openat = dlsym(RTLD_NEXT, "openat");
+	if (real_openat == NULL)
+	{
+		LD_NFS_DPRINTF(0, "Failed to dlsym(openat)");
 		exit(10);
 	}
 
